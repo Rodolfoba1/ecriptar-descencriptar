@@ -1,113 +1,197 @@
-import Image from "next/image";
+import { Caladea } from 'next/font/google';
+import * as readline from 'readline';
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+const askQuestion = (question: string): Promise<string> => {
+  return new Promise((resolve) => {
+    rl.question(question, resolve);
+  });
+};
+
+const askRowsAndColumns = (question: string): Promise<number> => {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      const num = parseInt(answer, 10);
+      if (isNaN(num) || num <= 0) {
+        console.log('Entrada no válida. Por favor, introduce un número entero positivo.');
+        resolve(NaN);
+      } else {
+        resolve(num);
+      }
+    });
+  });
+};
+
+/*************************************************************************************************
+ **************************************************************************************************/
+const encrypt = async (): Promise<void> => {
+  let arrayForKeyValues: number[][] = [];
+  let arrayForLetters: number[] = [];
+  
+  const input: string = await new Promise((resolve) => {
+    rl.question('Introduce un nombre y un apellido: ', resolve);
+  });
+
+  // matriz ingresada a 3x3
+  const filas = 3;
+  const columnas = 3;
+
+  function preguntarValor(i: number, j: number): Promise<void> {
+    return new Promise((resolve) => {
+      rl.question(`Ingrese el valor para la posición [${i}][${j}]: `, (input) => {
+        arrayForKeyValues[i][j] = parseInt(input);
+        resolve();
+      });
+    });
+  }
+
+  console.log("\nMensaje original:", input);
+  console.log("\n");
+  let newValue = input.toLowerCase().split('');
+
+  // matriz ingresada de 3x3
+  for (let i = 0; i < filas; i++) {
+    arrayForKeyValues[i] = [];
+    for (let j = 0; j < columnas; j++) {
+      await preguntarValor(i, j);
+    }
+  }
+  console.log("\nDada la clave (3x3):");
+  console.log(arrayForKeyValues);
+
+  // letras a números
+  for (let i = 0; i < newValue.length; i++) {
+    let charCode = newValue[i].charCodeAt(0);
+    if (charCode === 32) {
+      arrayForLetters.push(27); 
+    } else if (charCode >= 97 && charCode <= 122) {
+      arrayForLetters.push(charCode - 96);
+    }
+  }
+  console.log("\nLetras convertidas a números:");
+  // matriz resultante con 3 filas y columnas indefinidas xd
+  console.log(arrayForLetters);
+
+  let matriz: number[][] = [[], [], []];
+  let index = 0;
+
+  //  matriz columna por columna
+  while (index < arrayForLetters.length) {
+    for (let i = 0; i < 3; i++) {
+      if (index < arrayForLetters.length) {
+        matriz[i].push(arrayForLetters[index]);
+        index++;
+      } else {
+        matriz[i].push(27); 
+      }
+    }
+  }
+
+  console.log("\nMatriz M del mensaje:");
+  console.log(matriz.map(row => row.join(', ')).join('\n'));
+
+  // Multiplicación de matrices
+  let matrizResultado: number[][] = [[], [], []];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < matriz[0].length; j++) {
+      let sum = 0;
+      for (let k = 0; k < 3; k++) {
+        sum += arrayForKeyValues[i][k] * matriz[k][j];
+      }
+      matrizResultado[i].push(sum);
+    }
+  }
+
+  console.log("\nMatriz resultado de la multiplicación:");
+  console.log(matrizResultado.map(row => row.join(', ')).join('\n'));
+
+  console.log(`\nMensaje cifrado`);
+  let mensajeCifrado = matrizResultado.flat().join(',');
+  console.log(mensajeCifrado);
+
+  console.log("\nProceso de descifrado:");
+
+  // calcular la inversa de la matriz clave
+  const determinante = calcularDeterminante(arrayForKeyValues);
+  if (determinante === 0) {
+    console.log("\nLa matriz clave no tiene inversa. No se puede descifrar.");
+    return;
+  }
+
+  const matrizAdjunta = calcularMatrizAdjunta(arrayForKeyValues);
+  const matrizInversa = matrizAdjunta.map(fila => fila.map(valor => valor / determinante));
+
+  console.log("\nMatriz inversa de la clave:");
+  console.log(matrizInversa);
+
+  // multiplicar la inversa por la matriz del mensaje cifrado
+  let matrizDescifrada: number[][] = [[], [], []];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < matrizResultado[0].length; j++) {
+      let sum = 0;
+      for (let k = 0; k < 3; k++) {
+        sum += matrizInversa[i][k] * matrizResultado[k][j];
+      }
+      matrizDescifrada[i].push(Math.round(sum)); 
+    }
+  }
+
+  console.log("\nMatriz descifrada:");
+  console.log(matrizDescifrada.map(row => row.join(', ')).join('\n'));
+
+  // matriz descifrada a texto
+  let mensajeDescifrado = '';
+  for (let j = 0; j < matrizDescifrada[0].length; j++) {
+    for (let i = 0; i < 3; i++) {
+      let num = matrizDescifrada[i][j];
+      if (num === 27) {
+        mensajeDescifrado += ' ';
+      } else if (num >= 1 && num <= 26) {
+        mensajeDescifrado += String.fromCharCode(num + 96);
+      }
+    }
+  }
+
+  console.log("\nMensaje descifrado:");
+  console.log(mensajeDescifrado);
+}
+
+// calcular el determinante de matriz 3x3
+function calcularDeterminante(matriz: number[][]): number {
+  return matriz[0][0] * (matriz[1][1] * matriz[2][2] - matriz[1][2] * matriz[2][1])
+       - matriz[0][1] * (matriz[1][0] * matriz[2][2] - matriz[1][2] * matriz[2][0])
+       + matriz[0][2] * (matriz[1][0] * matriz[2][1] - matriz[1][1] * matriz[2][0]);
+}
+
+// calcular la matriz adjunta de la matriz 3x3
+function calcularMatrizAdjunta(matriz: number[][]): number[][] {
+  return [
+    [
+       (matriz[1][1] * matriz[2][2] - matriz[1][2] * matriz[2][1]),
+      -(matriz[0][1] * matriz[2][2] - matriz[0][2] * matriz[2][1]),
+       (matriz[0][1] * matriz[1][2] - matriz[0][2] * matriz[1][1])
+    ],
+    [
+      -(matriz[1][0] * matriz[2][2] - matriz[1][2] * matriz[2][0]),
+       (matriz[0][0] * matriz[2][2] - matriz[0][2] * matriz[2][0]),
+      -(matriz[0][0] * matriz[1][2] - matriz[0][2] * matriz[1][0])
+    ],
+    [
+       (matriz[1][0] * matriz[2][1] - matriz[1][1] * matriz[2][0]),
+      -(matriz[0][0] * matriz[2][1] - matriz[0][1] * matriz[2][0]),
+       (matriz[0][0] * matriz[1][1] - matriz[0][1] * matriz[1][0])
+    ]
+  ];
+}
+
+encrypt().catch(console.error);
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
-
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+    <div>Hola!</div>
+  ); 
 }
